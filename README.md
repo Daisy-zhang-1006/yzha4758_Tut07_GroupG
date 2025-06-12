@@ -34,3 +34,7 @@ Current Edition changed all dirven motion of the animation into time based that 
 ### External Tool and technology
 https://p5js.org/reference/
 All technics in this project used p5.js, millis(), noise(), and sin() formular are learnt from the p5.js official website 
+
+### ### Github Links
+https://github.com/Daisy-zhang-1006/yzha4758_Tut07_GroupG.git
+
