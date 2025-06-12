@@ -1,30 +1,19 @@
-const BASE_WIDTH  = 840;
+const BASE_WIDTH = 840;
 const BASE_HEIGHT = 620;
 
-let ripples = []; // Storing multiple shock waves
-let bg, bg2;      // Two-layer buffer background
-let cowStartTime = 0;  // The moment the bull animation begins
-let running = true;    // Control animation pause/resume
-let pauseTime = 0;     // Pause moment
-
-// The highest points of each part of a bull's body
+let textureOverlay;
 let body, leg1, leg2, leg3, leg4, horn1, horn2;
+let startTime = 0;
+let paused = false;
+let pausedAt = 0;
 
 function setup() {
   createCanvas(BASE_WIDTH, BASE_HEIGHT);
   updateCanvasScale();
+  textureOverlay = createGraphics(width, height);
+  createGrainTexture(textureOverlay);
+  startTime = millis();
 
-  // Initialise the background buffer and draw the oil painting background pattern
-  bg  = createGraphics(width, height);
-  bg2 = createGraphics(width, height);
-  createOilPaintBG();
-  bg.filter(BLUR, 1.5);
-
-  // Record the start time of the bull animation
-  cowStartTime = millis();
-
-  // =========================
-  // Vertex array initialisation
   body = [
     createVector(146,313), createVector(259,236), createVector(367,220),
     createVector(461,153), createVector(622,126), createVector(642,115),
@@ -35,281 +24,114 @@ function setup() {
     createVector(383,432), createVector(208,466), createVector(169,471),
     createVector(136,416),
   ];
-  leg1 = [
-    createVector(580,350), createVector(642,384), createVector(672,438),
-    createVector(634,421), createVector(638,414), createVector(515,385),
-  ];
-  leg2 = [
-    createVector(515,384), createVector(518,477), createVector(490,467),
-    createVector(472,400),
-  ];
-  leg3 = [
-    createVector(378,428), createVector(330,434), createVector(235,514),
-    createVector(221,546), createVector(186,553), createVector(132,593),
-    createVector(125,580), createVector(131,542), createVector(144,530),
-    createVector(200,497), createVector(210,452),
-  ];
-  leg4 = [
-    createVector(175,466), createVector(143,495), createVector(143,495),
-    createVector(119,500), createVector(125,501), createVector(108,533),
-    createVector(93,582), createVector(73,583), createVector(59,587),
-    createVector(37,568), createVector(82,500), createVector(81,480),
-    createVector(143,410),
-  ];
-  horn1 = [
-    createVector(668,169), createVector(685,190), createVector(729,183),
-  ];
-  horn2 = [
-    createVector(488,128), createVector(506,143), createVector(622,125),
-  ];
+  leg1 = [ createVector(580,350), createVector(642,384), createVector(672,438), createVector(634,421), createVector(638,414), createVector(515,385), ];
+  leg2 = [ createVector(515,384), createVector(518,477), createVector(490,467), createVector(472,400), ];
+  leg3 = [ createVector(378,428), createVector(330,434), createVector(235,514), createVector(221,546), createVector(186,553), createVector(132,593), createVector(125,580), createVector(131,542), createVector(144,530), createVector(200,497), createVector(223,452), ];
+  leg4 = [ createVector(175,466), createVector(143,495), createVector(143,495), createVector(119,500), createVector(125,501), createVector(108,533), createVector(93,582), createVector(73,583), createVector(59,587), createVector(37,568), createVector(82,500), createVector(81,480), createVector(143,410), ];
+  horn1 = [ createVector(668,169), createVector(685,190), createVector(729,183), ];
+  horn2 = [ createVector(488,128), createVector(506,143), createVector(622,125), ];
 }
-
 
 function draw() {
-  background(255);
+  let elapsed = paused ? (pausedAt - startTime) / 1000.0 : (millis() - startTime) / 1000.0;
 
-  let now = millis();
-  let elapsed = (now - cowStartTime) / 1000.0; // seconds
+  // 1. 动态背景：彩色油画刷痕 + 时间波动
+  drawDynamicBackground(elapsed);
 
-  // —— Background dynamic shaking + dynamic water ripples  ——
-  push();
-    const shakeX = sin(elapsed * 1.3) * 20;
-    const shakeY = cos(elapsed * 0.9) * 20;
-    translate(shakeX, shakeY);
-    updateWaterRipple(now); // Dynamic water waves using real time
-  pop();
-
-  // —— Dynamic Bull —— 
+  // 2. 明显的牛动画
   drawCow(elapsed);
 
-  
-  ripples = ripples.filter(r => (now - r.startTime) < 2000);
+  // 3. 叠加噪点纹理
+  push();
+  blendMode(OVERLAY);
+  image(textureOverlay, 0, 0);
+  blendMode(BLEND);
+  pop();
 }
 
-// ==== Mouse click ====
-function mousePressed() {
-  ripples.push({
-    x: mouseX,
-    y: mouseY,
-    startTime: millis() // Record the time when the event occurred
-  });
-}
+// ================= 动态油画背景 ===================
+const colours = [ "#fccace", "#bcbdf5", "#f5ce20", "#f56020", "#003366", "#6699cc" ];
+function drawDynamicBackground(elapsed) {
+  // 直接在主canvas绘制（不缓存）
+  background(230, 235, 255); // base
+  let numStrokes = 11000;
+  let strokeLength = 32;
+  let noiseScale = 0.005 + 0.002 * sin(elapsed * 0.3);
 
-// ==== Dynamic oil painting background generation ====
-function createOilPaintBG() {
-  const numStrokes   = 15000;
-  const strokeLength = 15;
-
-  bg.colorMode(HSB);
-  bg.background(0, 0, 95);
-
-  for (let x = 0; x < width; x += 20) {
-    for (let y = 0; y < height; y += 20) {
-      bg.noStroke();
-      bg.fill(random(360), random(50,100), random(50,100));
-      bg.ellipse(x, y, 15, 15);
-    }
-  }
-
-  bg2.clear();
-  bg2.colorMode(HSB);
   for (let i = 0; i < numStrokes; i++) {
-    let x = random(width), y = random(height);
-    let n = noise(x * 0.005, y * 0.005);
-    let h = map(n, 0, 1, 0, 360);
-    let s = map(n, 0, 1, 50, 100);
-    let b = map(n, 0, 1, 50, 100);
+    let x = random(width);
+    let y = random(height);
 
-    bg2.stroke(h, s, b);
-    bg2.strokeWeight(random(1,3));
-    let a  = map(noise(x*0.01, y*0.01), 0, TWO_PI);
-    let px = x + cos(a) * strokeLength;
-    let py = y + sin(a) * strokeLength;
-    bg2.line(x, y, px, py);
+    // 动态色彩随时间跳动
+    let n = noise(x * noiseScale, y * noiseScale, elapsed * 0.07);
+    let colourIndex = int((n + 0.13 * sin(elapsed + x * 0.001 + y * 0.001)) * colours.length) % colours.length;
+    let dabColor = colours[(colourIndex + colours.length) % colours.length];
+
+    stroke(dabColor + "99"); // 半透明
+    strokeWeight(random(1.5, 4));
+    // 动态角度，背景“呼吸感”
+    let angle = map(noise(x * 0.03, y * 0.03, elapsed * 0.07), 0, 1, 0, TWO_PI * 2)
+                  + sin(elapsed * 0.5 + x * 0.001) * 0.7;
+
+    let len = strokeLength * (1.1 + 0.3 * sin(elapsed * 0.21 + x * 0.004 + y * 0.004));
+    let px = x + cos(angle) * len;
+    let py = y + sin(angle) * len;
+    line(x, y, px, py);
   }
-
-  bg.blend(bg2, 0,0,width,height, 0,0,width,height, BLEND);
 }
 
-// ==== Dynamic water waves ====
-function updateWaterRipple(now) {
-  let disp = createImage(width, height);
-  disp.loadPixels();
-  bg.loadPixels();
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      let idx = (x + y * width) * 4;
-
-      // Perlin noise displacement, using real time
-      let t = now / 1000.0;
-      let n = noise(x * 0.01, y * 0.01, t * 0.2);
-      let offsetX = map(n, 0, 1, -30, 30);
-      let offsetY = map(n, 0, 1, -30, 30);
-
-      // Mouse disturbance
-      let dx1 = x - mouseX;
-      let dy1 = y - mouseY;
-      let distSq = dx1 * dx1 + dy1 * dy1;
-      let maxDist = 200 * 200;
-      if (distSq < maxDist) {
-        let d = sqrt(distSq);
-        let strength = map(d, 0, sqrt(maxDist), 15, 0);
-        offsetX += cos(t * 5 + d * 0.1) * strength;
-        offsetY += sin(t * 5 + d * 0.1) * strength;
-      }
-
-      // Shock wave superposition
-      for (let ripple of ripples) {
-        let rippleElapsed = (now - ripple.startTime) / 1000.0;
-        let dx = x - ripple.x;
-        let dy = y - ripple.y;
-        let d = sqrt(dx * dx + dy * dy);
-        let waveRadius = rippleElapsed * 250;
-        let waveWidth = 50;
-        if (abs(d - waveRadius) < waveWidth) {
-          let strength = map(abs(d - waveRadius), 0, waveWidth, 12, 0);
-          let angle = atan2(dy, dx);
-          offsetX += cos(angle) * strength;
-          offsetY += sin(angle) * strength;
-        }
-      }
-
-      let sx = constrain(x + offsetX, 0, width - 1);
-      let sy = constrain(y + offsetY, 0, height - 1);
-      let sidx = (floor(sx) + floor(sy) * width) * 4;
-
-      disp.pixels[idx    ] = bg.pixels[sidx    ];
-      disp.pixels[idx + 1] = bg.pixels[sidx + 1];
-      disp.pixels[idx + 2] = bg.pixels[sidx + 2];
-      disp.pixels[idx + 3] = 255;
-    }
-  }
-
-  disp.updatePixels();
-  image(disp, 0, 0);
-}
-
-function updateCanvasScale() {
-  const s = min(windowWidth / BASE_WIDTH, windowHeight / BASE_HEIGHT) * 0.95;
-  const c = document.querySelector('canvas');
-  c.style.transform = `scale(${s})`;
-  c.style.position  = 'absolute';
-  c.style.left      = `calc(50% - ${BASE_WIDTH * s / 2}px)`;
-  c.style.top       = `calc(50% - ${BASE_HEIGHT * s / 2}px)`;
-}
-
-function windowResized() {
-  updateCanvasScale();
-}
-
-// ==== Dynamic Drawing of Bull） ====
+// ================ 让牛动感更强，动画更夸张 ================
 function drawCow(elapsed) {
-  const animSpeed = 0.15;
-  const animAmplitude = 0.06;
-  let swingAngle = sin(elapsed * 60 * animSpeed) * animAmplitude;
+  // 动画参数：频率和幅度都提升
+  const animSpeed = 2.2;           // 更快
+  const animAmplitude = 0.34;      // 幅度更大
 
-  const pivot1 = createVector(610, 370),
-        pivot2 = createVector(500, 395),
-        pivot3 = createVector(350, 440),
-        pivot4 = createVector(160, 420);
+  // 让牛整体上下小幅度跳动（用作动态示范）
+  let globalY = sin(elapsed * 1.1) * 12;
 
-  // Body
-  drawRoughPolygon(body, 1, '#000000', 14);
+  // 四肢大幅度摇摆，时间变化明显
+  let swingAngle = sin(elapsed * animSpeed) * animAmplitude;
 
-  // Alternate swinging of four legs
+  // 牛身体整体略抖动
+  let bodyShakeX = sin(elapsed * 2.3) * 5;
+  let bodyShakeY = cos(elapsed * 1.7) * 4;
+
+  // 身体
   push();
-    translate(pivot1.x, pivot1.y);
-    rotate(swingAngle);
-    translate(-pivot1.x, -pivot1.y);
-    drawPatternedLeg(leg1, elapsed + 1.0);
+  translate(bodyShakeX, globalY + bodyShakeY);
+  drawRoughPolygon(body, 2, '#1a1a1a', 13);
   pop();
 
-  push();
-    translate(pivot2.x, pivot2.y);
-    rotate(-swingAngle);
-    translate(-pivot2.x, -pivot2.y);
-    drawPatternedLeg(leg2, elapsed + 2.0);
-  pop();
-
-  push();
-    translate(pivot3.x, pivot3.y);
-    rotate(swingAngle);
-    translate(-pivot3.x, -pivot3.y);
-    drawPatternedLeg(leg3, elapsed + 3.0);
-  pop();
-
-  push();
-    translate(pivot4.x, pivot4.y);
-    rotate(-swingAngle);
-    translate(-pivot4.x, -pivot4.y);
-    drawPatternedLeg(leg4, elapsed + 4.0);
-  pop();
-
-  // Bull Horn
-  drawRoughPolygon(horn1, 0, '#FFFFFF', 10);
-  drawRoughPolygon(horn2, 0, '#FFFFFF', 10);
-}
-
-function drawPatternedLeg(pts, t) {
-  let g = createGraphics(width, height);
-  g.colorMode(HSB, 360, 100, 100, 100);  // Alpha Support
-  g.noFill();
-  g.noStroke();
-
-  const numStripes = 60;
-  for (let i = 0; i < numStripes; i++) {
-    let seedX = random(width);
-    let seedY = random(height);
-    if (!insidePolygon(seedX, seedY, pts)) continue;
-
-    let path = [];
-    let px = seedX;
-    let py = seedY;
-
-    for (let j = 0; j < 40; j++) {
-      if (!insidePolygon(px, py, pts)) break;
-      path.push({ x: px, y: py });
-
-      let angle = noise(px * 0.01, py * 0.01, t) * TWO_PI * 2;
-      px += cos(angle) * 3.5;
-      py += sin(angle) * 3.5;
-    }
-
-    let baseHue = map(noise(seedX * 0.01, seedY * 0.01, t), 0, 1, 220, 275);
-    g.stroke(baseHue, 60, 100, 50); // 使用 alpha
-    g.strokeWeight(random(1, 2.5));
-    g.noFill();
-    g.beginShape();
-    for (let p of path) g.curveVertex(p.x, p.y);
-    g.endShape();
+  // 四条腿（pivot点可以灵活微调）
+  let pivots = [
+    createVector(610, 370), // leg1
+    createVector(500, 395), // leg2
+    createVector(350, 440), // leg3
+    createVector(160, 420), // leg4
+  ];
+  let legs = [leg1, leg2, leg3, leg4];
+  let signs = [+1, -1, +1, -1];
+  for (let i = 0; i < 4; i++) {
+    push();
+    translate(pivots[i].x + bodyShakeX, pivots[i].y + globalY + bodyShakeY);
+    rotate(swingAngle * signs[i] * (0.92 + 0.06 * i)); // 每条腿相位略有不同
+    translate(-pivots[i].x - bodyShakeX, -pivots[i].y - globalY - bodyShakeY);
+    drawRoughPolygon(legs[i], 2, '#1a1a1a', 13);
+    pop();
   }
 
-  for (let i = 0; i < 35; i++) {
-    const idx = floor(random(pts.length));
-    const p = pts[idx];
-    const offset = p5.Vector.random2D().mult(random(5, 25));
-    const cx = p.x + offset.x;
-    const cy = p.y + offset.y;
-    if (insidePolygon(cx, cy, pts)) {
-      let hue = map(noise(cx * 0.02, cy * 0.02), 0, 1, 210, 280);
-      g.noStroke();
-      g.fill(hue, 50, 100, 70);
-      g.ellipse(cx, cy, random(4, 10));
-    }
-  }
-
-  drawRoughPolygon(pts, 1, '#a4c6f3', 14);
-  image(g, 0, 0);
+  // 牛角 & 眼睛
+  drawRoughPolygon(horn1, 0.5, '#FFFFFF', 10);
+  drawRoughPolygon(horn2, 0.5, '#F5F5F5', 10);
 }
 
-function drawRoughPolygon(pts, jitter = 8, fillCol = '#dbb277', stepDiv = 14) {
-  if (!pts || pts.length < 2) return;
+function drawRoughPolygon(polygonVertices, jitter = 8, fillCol = '#dbb277', stepDiv = 14) {
+  if (polygonVertices.length === 0) return;
   let jittered = [];
-  for (let i = 0; i < pts.length; i++) {
-    let p1 = pts[i];
-    let p2 = pts[(i + 1) % pts.length];
-    let steps = int(p5.Vector.dist(p1, p2) / stepDiv);
+  for (let i = 0; i < polygonVertices.length; i++) {
+    let p1 = polygonVertices[i];
+    let p2 = polygonVertices[(i + 1) % polygonVertices.length];
+    let steps = int(dist(p1.x, p1.y, p2.x, p2.y) / stepDiv);
     for (let t = 0; t < steps; t++) {
       let x = lerp(p1.x, p2.x, t / steps);
       let y = lerp(p1.y, p2.y, t / steps);
@@ -323,34 +145,49 @@ function drawRoughPolygon(pts, jitter = 8, fillCol = '#dbb277', stepDiv = 14) {
   noStroke();
   fill(fillCol);
   beginShape();
-  for (let v of jittered) {
-    vertex(v.x, v.y);
-  }
+  for (let v of jittered) vertex(v.x, v.y);
   endShape(CLOSE);
 }
 
-function insidePolygon(x, y, polygon) {
-  let inside = false;
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const xi = polygon[i].x, yi = polygon[i].y;
-    const xj = polygon[j].x, yj = polygon[j].y;
-    const intersect = ((yi > y) !== (yj > y)) &&
-                      (x < (xj - xi) * (y - yi) / (yj - yi + 0.00001) + xi);
-    if (intersect) inside = !inside;
+function createGrainTexture(graphics) {
+  const grainAmount = 100000;
+  graphics.noStroke();
+  for (let i = 0; i < grainAmount; i++) {
+    const x = random(width);
+    const y = random(height);
+    const alpha = random(0, 15);
+    if (random() > 0.5) {
+      graphics.fill(255, alpha);
+    } else {
+      graphics.fill(0, alpha);
+    }
+    graphics.rect(x, y, 1, 1);
   }
-  return inside;
 }
 
-// Pausing/resuming animations (space bar)
+function updateCanvasScale() { 
+    const scaleFactor = Math.min(windowWidth / BASE_WIDTH, windowHeight / BASE_HEIGHT) * 0.95; 
+    const canvasEl = document.querySelector('canvas');
+    canvasEl.style.transform = `scale(${scaleFactor})`;
+    canvasEl.style.position = 'absolute';
+    canvasEl.style.left = `calc(50% - ${BASE_WIDTH * scaleFactor / 2}px)`;
+    canvasEl.style.top = `calc(50% - ${BASE_HEIGHT * scaleFactor / 2}px)`;
+}
+
+function windowResized() {
+    updateCanvasScale();
+}
+
 function keyPressed() {
   if (key === ' ') {
-    running = !running;
-    if (running) {
-      cowStartTime += (millis() - pauseTime); // Seamless animation transitions
-      loop();
-    } else {
-      pauseTime = millis();
+    if (!paused) {
+      paused = true;
+      pausedAt = millis();
       noLoop();
+    } else {
+      paused = false;
+      startTime += (millis() - pausedAt);
+      loop();
     }
   }
 }
