@@ -35,13 +35,13 @@ function setup() {
 function draw() {
   let elapsed = paused ? (pausedAt - startTime) / 1000.0 : (millis() - startTime) / 1000.0;
 
-  // 1. 动态背景：彩色油画刷痕 + 时间波动
+  // 1. Dynamic background: colourful oil paint brush strokes + time fluctuations
   drawDynamicBackground(elapsed);
 
-  // 2. 明显的牛动画
+  // Obvious cow animation
   drawCow(elapsed);
 
-  // 3. 叠加噪点纹理
+  // Overlay noise texture
   push();
   blendMode(OVERLAY);
   image(textureOverlay, 0, 0);
@@ -49,10 +49,10 @@ function draw() {
   pop();
 }
 
-// ================= 动态油画背景 ===================
+// ========= Dynamic Oil Painting Background =================
 const colours = [ "#fccace", "#bcbdf5", "#f5ce20", "#f56020", "#003366", "#6699cc" ];
 function drawDynamicBackground(elapsed) {
-  // 直接在主canvas绘制（不缓存）
+  // Draw directly on the main canvas
   background(230, 235, 255); // base
   let numStrokes = 11000;
   let strokeLength = 32;
@@ -62,14 +62,14 @@ function drawDynamicBackground(elapsed) {
     let x = random(width);
     let y = random(height);
 
-    // 动态色彩随时间跳动
+    // Dynamic colours that change over time
     let n = noise(x * noiseScale, y * noiseScale, elapsed * 0.07);
     let colourIndex = int((n + 0.13 * sin(elapsed + x * 0.001 + y * 0.001)) * colours.length) % colours.length;
     let dabColor = colours[(colourIndex + colours.length) % colours.length];
 
-    stroke(dabColor + "99"); // 半透明
+    stroke(dabColor + "99"); // translucent
     strokeWeight(random(1.5, 4));
-    // 动态角度，背景“呼吸感”
+    // Dynamic angle, background ‘breathing sensation’
     let angle = map(noise(x * 0.03, y * 0.03, elapsed * 0.07), 0, 1, 0, TWO_PI * 2)
                   + sin(elapsed * 0.5 + x * 0.001) * 0.7;
 
@@ -80,29 +80,29 @@ function drawDynamicBackground(elapsed) {
   }
 }
 
-// ================ 让牛动感更强，动画更夸张 ================
+// ================ Make the cow more dynamic and the animation more exaggerated. ================
 function drawCow(elapsed) {
-  // 动画参数：频率和幅度都提升
-  const animSpeed = 2.2;           // 更快
-  const animAmplitude = 0.34;      // 幅度更大
+  // Animation parameters: Frequency and amplitude both increased
+  const animSpeed = 2.2;           // Faster
+  const animAmplitude = 0.34;      // Larger range
 
-  // 让牛整体上下小幅度跳动（用作动态示范）
+  // Make the cow jump up and down slightly
   let globalY = sin(elapsed * 1.1) * 12;
 
-  // 四肢大幅度摇摆，时间变化明显
+  // Swinging limbs vigorously, with noticeable changes over time.
   let swingAngle = sin(elapsed * animSpeed) * animAmplitude;
 
-  // 牛身体整体略抖动
+  // The cow's body trembles slightly.
   let bodyShakeX = sin(elapsed * 2.3) * 5;
   let bodyShakeY = cos(elapsed * 1.7) * 4;
 
-  // 身体
+  // Body
   push();
   translate(bodyShakeX, globalY + bodyShakeY);
   drawRoughPolygon(body, 2, '#1a1a1a', 13);
   pop();
 
-  // 四条腿（pivot点可以灵活微调）
+  // Four legs
   let pivots = [
     createVector(610, 370), // leg1
     createVector(500, 395), // leg2
@@ -114,13 +114,13 @@ function drawCow(elapsed) {
   for (let i = 0; i < 4; i++) {
     push();
     translate(pivots[i].x + bodyShakeX, pivots[i].y + globalY + bodyShakeY);
-    rotate(swingAngle * signs[i] * (0.92 + 0.06 * i)); // 每条腿相位略有不同
+    rotate(swingAngle * signs[i] * (0.92 + 0.06 * i)); // Each leg different 
     translate(-pivots[i].x - bodyShakeX, -pivots[i].y - globalY - bodyShakeY);
     drawRoughPolygon(legs[i], 2, '#1a1a1a', 13);
     pop();
   }
 
-  // 牛角 & 眼睛
+  // Cow horn & Eve
   drawRoughPolygon(horn1, 0.5, '#FFFFFF', 10);
   drawRoughPolygon(horn2, 0.5, '#F5F5F5', 10);
 }
